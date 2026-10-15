@@ -500,7 +500,7 @@
 
         footer strong { color: var(--accent-yellow); }
 
-        /* ALL-DATA PRINTING FIX (Kopya mula sa lumang working setup) */
+        /* ALL-DATA PRINTING FIX */
         @media print {
             header, nav, .filter-bar, .pos-controls, .btn, button, .btn-danger, .btn-void-tap, .btn-spoilage-tap, .modal-overlay, footer, .sync-status-bar, #login-screen, #toast {
                 display: none !important;
@@ -598,7 +598,7 @@
         <!-- SYSTEM SYNC & NETWORK BAR -->
         <div class="sync-status-bar">
             <div>
-                System Status: <span id="status-badge" class="status-badge status-online">FIREBASE AUTO-SYNC</span>
+                System Status: <span id="status-badge" class="status-badge status-online">SECURE AUTO-SYNC</span>
             </div>
             <div>
                 Last Cloud Sync: <span id="last-sync-time">N/A</span>
@@ -976,9 +976,10 @@
         </footer>
     </div>
 
-    <!-- FIREBASE REALTIME DATABASE SDK INTEGRATION -->
+    <!-- FIREBASE REALTIME DATABASE & ANONYMOUS AUTH SDK INTEGRATION -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
         const firebaseConfig = {
@@ -992,51 +993,63 @@
         };
 
         const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
         const db = getDatabase(app);
 
-        window.saveStateToFirebase = function() {
-            set(ref(db, 'fivestar_data'), {
-                products: window.products || [],
-                receivedLogs: window.receivedLogs || [],
-                salesLogs: window.salesLogs || [],
-                spoilageLogs: window.spoilageLogs || [],
-                expensesLogs: window.expensesLogs || [],
-                backdatedLogs: window.backdatedLogs || [],
-                credentials: window.credentials || {}
-            }).then(() => {
-                document.getElementById('last-sync-time').textContent = new Date().toLocaleTimeString();
-            }).catch(err => {
-                console.error("Firebase sync error: ", err);
-            });
-        };
+        // SECURE ANONYMOUS AUTHENTICATION LOGIN
+        signInAnonymously(auth).catch((error) => {
+            console.error("Firebase Auth Error: ", error);
+        });
 
-        const dataRef = ref(db, 'fivestar_data');
-        onValue(dataRef, (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                if (data.products) window.products = data.products;
-                if (data.receivedLogs) window.receivedLogs = data.receivedLogs;
-                if (data.salesLogs) window.salesLogs = data.salesLogs;
-                if (data.spoilageLogs) window.spoilageLogs = data.spoilageLogs;
-                if (data.expensesLogs) window.expensesLogs = data.expensesLogs;
-                if (data.backdatedLogs) window.backdatedLogs = data.backdatedLogs;
-                if (data.credentials) {
-                    window.credentials = data.credentials;
-                    localStorage.setItem('fs_credentials', JSON.stringify(window.credentials));
-                    if (typeof window.loadPasswordFields === 'function') window.loadPasswordFields();
-                }
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // Verified Authenticated Session - Connect Realtime Sync
+                const dataRef = ref(db, 'fivestar_data');
+                
+                window.saveStateToFirebase = function() {
+                    set(ref(db, 'fivestar_data'), {
+                        products: window.products || [],
+                        receivedLogs: window.receivedLogs || [],
+                        salesLogs: window.salesLogs || [],
+                        spoilageLogs: window.spoilageLogs || [],
+                        expensesLogs: window.expensesLogs || [],
+                        backdatedLogs: window.backdatedLogs || [],
+                        credentials: window.credentials || {}
+                    }).then(() => {
+                        document.getElementById('last-sync-time').textContent = new Date().toLocaleTimeString();
+                    }).catch(err => {
+                        console.error("Firebase sync error: ", err);
+                    });
+                };
 
-                localStorage.setItem('fs_products', JSON.stringify(window.products));
-                localStorage.setItem('fs_receivedLogs', JSON.stringify(window.receivedLogs));
-                localStorage.setItem('fs_salesLogs', JSON.stringify(window.salesLogs));
-                localStorage.setItem('fs_spoilageLogs', JSON.stringify(window.spoilageLogs));
-                localStorage.setItem('fs_expensesLogs', JSON.stringify(window.expensesLogs));
-                localStorage.setItem('fs_backdatedLogs', JSON.stringify(window.backdatedLogs));
+                onValue(dataRef, (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        if (data.products) window.products = data.products;
+                        if (data.receivedLogs) window.receivedLogs = data.receivedLogs;
+                        if (data.salesLogs) window.salesLogs = data.salesLogs;
+                        if (data.spoilageLogs) window.spoilageLogs = data.spoilageLogs;
+                        if (data.expensesLogs) window.expensesLogs = data.expensesLogs;
+                        if (data.backdatedLogs) window.backdatedLogs = data.backdatedLogs;
+                        if (data.credentials) {
+                            window.credentials = data.credentials;
+                            localStorage.setItem('fs_credentials', JSON.stringify(window.credentials));
+                            if (typeof window.loadPasswordFields === 'function') window.loadPasswordFields();
+                        }
 
-                document.getElementById('last-sync-time').textContent = new Date().toLocaleTimeString();
-                if (typeof window.renderAll === 'function') {
-                    window.renderAll();
-                }
+                        localStorage.setItem('fs_products', JSON.stringify(window.products));
+                        localStorage.setItem('fs_receivedLogs', JSON.stringify(window.receivedLogs));
+                        localStorage.setItem('fs_salesLogs', JSON.stringify(window.salesLogs));
+                        localStorage.setItem('fs_spoilageLogs', JSON.stringify(window.spoilageLogs));
+                        localStorage.setItem('fs_expensesLogs', JSON.stringify(window.expensesLogs));
+                        localStorage.setItem('fs_backdatedLogs', JSON.stringify(window.backdatedLogs));
+
+                        document.getElementById('last-sync-time').textContent = new Date().toLocaleTimeString();
+                        if (typeof window.renderAll === 'function') {
+                            window.renderAll();
+                        }
+                    }
+                });
             }
         });
     </script>
